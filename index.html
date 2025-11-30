@@ -1,131 +1,296 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Camera + Mouse Lab</title>
-<style>
-body {
-  margin: 0;
-  font-family: system-ui, sans-serif;
-  background: #0a0f1f;
-  color: #e0e7ff;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  height: 100vh;
-  padding-top: 20px;
-}
-#cameraFrame {
-  width: 300px;
-  height: 180px;
-  background: #000;
-  border-radius: 16px;
-  padding: 8px;
-  border: 3px solid #4f46e5;
-  box-shadow: 0 0 18px rgba(89, 83, 255, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  overflow: hidden;
-}
-#cameraFrame video {
-  width: 100%;
-  height: 100%;
-  border-radius: 12px;
-  object-fit: cover;
-  transform: scaleX(-1); /* mirror feel for nicer HUD-look; remove if you dislike */
-}
-#player {
-  width: 42px;
-  height: 42px;
-  background: #22d3ee;
-  border-radius: 10px;
-  position: absolute;
-  pointer-events: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  user-select: none;
-  transition: transform 0.15s;
-}
-#status {
-  margin-top: 16px;
-  font-size: 18px;
-  min-height: 24px;
-}
-button {
-  margin-top: 20px;
-  padding: 10px 20px;
-  font-size: 16px;
-  border-radius: 12px;
-  border: none;
-  background: #4f46e5;
-  color: white;
-  cursor: pointer;
-  transition: transform 0.2s;
-}
-button:hover {
-  transform: scale(1.08);
-}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dino Run 🦖</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      background: linear-gradient(to top, #c8e6c9 40%, #bbdefb 60%);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      transition: background 1s;
+    }
+    body.night {
+      background: linear-gradient(to top, #0d1b2a 40%, #1b263b 60%);
+    }
+    canvas {
+      display: none;
+      background: linear-gradient(to top, #a5d6a7 40%, #b3e5fc 60%);
+      border: 3px solid #444;
+      border-radius: 10px;
+      transition: background 1s;
+    }
+    canvas.night {
+      background: linear-gradient(to top, #222831 40%, #393e46 60%);
+    }
+    #menu, #restartMenu {
+      text-align: center;
+    }
+    h1 {
+      color: #222;
+      font-size: 2.5em;
+      margin-bottom: 20px;
+    }
+    button {
+      padding: 10px 25px;
+      margin: 10px;
+      background-color: #4caf50;
+      border: none;
+      border-radius: 10px;
+      color: white;
+      font-size: 1.2em;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    button:hover {
+      background-color: #388e3c;
+    }
+    #restartMenu {
+      display: none;
+    }
+    #finalScore {
+      font-size: 1.5em;
+      margin: 10px 0;
+      color: #333;
+    }
+    #hardModeText {
+      position: absolute;
+      top: 20%;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #ff1744;
+      font-size: 2em;
+      font-weight: bold;
+      text-shadow: 2px 2px 5px black;
+      display: none;
+    }
+    #top3 {
+      margin-top: 10px;
+      font-size: 18px;
+      font-weight: bold;
+      color: #222;
+      text-align: center;
+    }
+  </style>
 </head>
 <body>
+  <div id="menu">
+    <h1>Dino Run 🦖</h1>
+    <button id="startBtn">Start Game</button>
+    <p>Space / Left Click / Tap / Say "jump" = Jump</p>
+  </div>
 
-<div id="cameraFrame">
-  <video id="cam" autoplay playsinline></video>
-  <div id="player">🎯</div>
-</div>
+  <canvas id="gameCanvas"></canvas>
+  <div id="hardModeText">⚡ Hard Mode Activated!</div>
 
-<div id="status"></div>
-<button onclick="printPointer(event)">Pointer Coords</button>
+  <div id="restartMenu">
+    <h2>Game Over</h2>
+    <p id="finalScore"></p>
+    <button id="restartBtn">Restart</button>
+  </div>
 
-<script>
-const video = document.getElementById("cam");
-const player = document.getElementById("player");
-const status = document.getElementById("status");
+  <div id="top3">Top 3 Scores: -</div>
 
-// Start mobile back camera
-async function startBackCamera() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment" }
-    });
-    video.srcObject = stream;
-    console.log("Camera stream started.");
-  } catch (err) {
-    console.error("Camera permission error:", err);
-  }
-}
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const startBtn = document.getElementById("startBtn");
+    const restartBtn = document.getElementById("restartBtn");
+    const menu = document.getElementById("menu");
+    const restartMenu = document.getElementById("restartMenu");
+    const finalScore = document.getElementById("finalScore");
+    const top3Div = document.getElementById("top3");
+    const hardModeText = document.getElementById("hardModeText");
 
-// Game loop start (future extension point)
-function gameLoop() {
-  requestAnimationFrame(gameLoop);
-}
+    // Responsive canvas
+    function resizeCanvas() {
+      if (window.innerWidth < 600) {
+        canvas.width = window.innerWidth * 0.95;
+        canvas.height = window.innerHeight * 0.5;
+      } else {
+        canvas.width = window.innerWidth * 0.6;
+        canvas.height = window.innerHeight * 0.5;
+      }
+    }
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
 
-document.addEventListener("mousemove", (e) => {
-  // Move target droid with mouse
-  player.style.left = (e.clientX - 21) + "px"; // center offset
-  player.style.top  = (e.clientY - 21) + "px";
+    const dinoImg = new Image();
+    dinoImg.src = "dino.png";
+    const cactusImg = new Image();
+    cactusImg.src = "cactus.png";
 
-  // Hover effect pulse
-  player.style.transform = "scale(1.12)";
-  setTimeout(()=> player.style.transform = "scale(1)", 80);
-});
+    let dino, ground, cactus, score, gameOver, gameStarted, hardModeOn;
+    let topScore = localStorage.getItem("topScore") ? parseInt(localStorage.getItem("topScore")) : 0;
+    let topScores = JSON.parse(localStorage.getItem("topScores") || "[]");
 
-// Function triggered by button to practice event + coords
-function printPointer(e) {
-  const text = `X:${e.clientX}  Y:${e.clientY}`;
-  status.innerText = text;
-  console.log(text);
-}
+    function updateTopScores(newScore) {
+      topScores.push(newScore);
+      topScores.sort((a, b) => b - a);
+      topScores = topScores.slice(0, 3);
+      localStorage.setItem("topScores", JSON.stringify(topScores));
+      localStorage.setItem("topScore", topScores[0]);
+      updateTop3Display();
+    }
 
-startBackCamera();
-gameLoop();
-</script>
+    function updateTop3Display() {
+      if (topScores.length === 0) {
+        top3Div.textContent = "Top 3 Scores: -";
+      } else {
+        top3Div.textContent = "Top 3 Scores: " + topScores.join(", ");
+      }
+    }
 
+    function initGame() {
+      document.body.classList.remove("night");
+      canvas.classList.remove("night");
+      hardModeText.style.display = "none";
+
+      dino = { x: 50, y: 0, width: 60, height: 60, vy: 0, gravity: 1.3, jumpPower: -20, grounded: false };
+      ground = { y: canvas.height - 100, height: 100 };
+      cactus = { x: canvas.width + 100, y: ground.y - 45, width: 45, height: 45, speed: 7 };
+
+      score = 0;
+      gameOver = false;
+      gameStarted = true;
+      hardModeOn = false;
+
+      canvas.style.display = "block";
+      menu.style.display = "none";
+      restartMenu.style.display = "none";
+      updateTop3Display();
+    }
+
+    function jump() {
+      if (dino.grounded) {
+        dino.vy = dino.jumpPower;
+        dino.grounded = false;
+      }
+    }
+
+    function activateHardMode() {
+      if (!hardModeOn) {
+        hardModeOn = true;
+        hardModeText.style.display = "block";
+        setTimeout(() => (hardModeText.style.display = "none"), 2000);
+      }
+    }
+
+    function update() {
+      if (!gameStarted || gameOver) return;
+
+   
+      cactus.speed = 9 + Math.floor(score / 5) * 5;
+
+      if (score >= 10) {
+        dino.gravity = 1.6;
+        dino.jumpPower = -18;
+        activateHardMode();
+      }
+      if (score >= 50) {
+        document.body.classList.add("night");
+        canvas.classList.add("night");
+      }
+
+      dino.vy += dino.gravity;
+      dino.y += dino.vy;
+      if (dino.y + dino.height >= ground.y) {
+        dino.y = ground.y - dino.height;
+        dino.vy = 0;
+        dino.grounded = true;
+      }
+
+      cactus.x -= cactus.speed;
+      if (cactus.x + cactus.width < 0) {
+        cactus.x = canvas.width + Math.random() * 200 + 100;
+        score++;
+      }
+
+      const dinoBox = { left: dino.x + 10, right: dino.x + dino.width - 15, top: dino.y + 5, bottom: dino.y + dino.height - 5 };
+      const cactusBox = { left: cactus.x + 5, right: cactus.x + cactus.width - 5, top: cactus.y + 5, bottom: cactus.y + cactus.height - 5 };
+
+      if (dinoBox.left < cactusBox.right && dinoBox.right > cactusBox.left && dinoBox.top < cactusBox.bottom && dinoBox.bottom > cactusBox.top) {
+        gameOver = true;
+        updateTopScores(score);
+        setTimeout(() => showRestart(), 600);
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#6d4c41";
+      ctx.fillRect(0, ground.y, canvas.width, ground.height);
+      if (cactusImg.complete) ctx.drawImage(cactusImg, cactus.x, cactus.y, cactus.width, cactus.height);
+      if (dinoImg.complete) ctx.drawImage(dinoImg, dino.x, dino.y, dino.width, dino.height);
+      ctx.fillStyle = "#222";
+      ctx.font = "22px Arial";
+      ctx.fillText("Score: " + score, 20, 30);
+      ctx.fillText("Top: " + topScore, 20, 60);
+    }
+
+    function gameLoop() {
+      update();
+      draw();
+      if (!gameOver) requestAnimationFrame(gameLoop);
+    }
+
+    function showRestart() {
+      canvas.style.display = "none";
+      restartMenu.style.display = "block";
+      finalScore.textContent = "Your Score: " + score;
+      topScore = Math.max(score, topScore);
+      localStorage.setItem("topScore", topScore);
+      updateTop3Display();
+    }
+
+    startBtn.addEventListener("click", () => { initGame(); gameLoop(); });
+    restartBtn.addEventListener("click", () => { initGame(); gameLoop(); });
+    window.addEventListener("keydown", e => { if (e.code === "Space") jump(); });
+    window.addEventListener("mousedown", e => { if (e.button === 0) jump(); }); 
+    canvas.addEventListener("touchstart", jump);
+
+    updateTop3Display();
+
+    
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const recognizer = new SpeechRecognition();
+      recognizer.continuous = true;
+      recognizer.interimResults = false;
+      recognizer.lang = "en-IN"; 
+
+      recognizer.addEventListener("result", (e) => {
+        const last = e.results[e.results.length - 1];
+        const said = last[0].transcript.trim().toLowerCase();
+        console.log("Voice:", said);
+        if (said === "jump") {  
+        }
+      });
+
+      recognizer.addEventListener("end", () => {
+   
+        try { recognizer.start(); } catch (err) {}
+      });
+
+      try {
+        recognizer.start();
+      } catch (err) {
+        console.log("Speech start error:", err);
+      }
+    } else {
+      console.log("SpeechRecognition is not supported in this browser.");
+    }
+  </script>
 </body>
 </html>
